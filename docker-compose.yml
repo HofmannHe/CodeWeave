@@ -1,0 +1,157 @@
+# CodeWeave AI工作流平台 - 开发环境配置
+# 支持自建方案的完整开发环境
+
+version: '3.8'
+
+services:
+  # PostgreSQL数据库
+  postgres:
+    image: postgres:15-alpine
+    container_name: codeweave-postgres
+    environment:
+      POSTGRES_DB: workflow_platform
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d workflow_platform"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - codeweave-network
+
+  # Redis缓存和消息队列
+  redis:
+    image: redis:7-alpine
+    container_name: codeweave-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --requirepass ""
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - codeweave-network
+
+  # Temporal服务器
+  temporal:
+    image: temporalio/auto-setup:1.22.0
+    container_name: codeweave-temporal
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DB=postgresql
+      - DB_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PWD=password
+      - POSTGRES_SEEDS=postgres
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+    ports:
+      - "7233:7233"   # Temporal gRPC
+      - "8080:8080"   # Temporal Web UI
+    volumes:
+      - ./config/temporal:/etc/temporal/config/dynamicconfig
+    healthcheck:
+      test: ["CMD", "tctl", "--address", "temporal:7233", "workflow", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - codeweave-network
+
+  # Temporal Web UI (独立服务)
+  temporal-web:
+    image: temporalio/web:2.21.3
+    container_name: codeweave-temporal-web
+    depends_on:
+      temporal:
+        condition: service_healthy
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:3000,http://localhost:8000
+    ports:
+      - "8081:8080"   # 避免与Temporal服务器端口冲突
+    networks:
+      - codeweave-network
+
+  # 可选：Grafana监控 (开发环境)
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: codeweave-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    ports:
+      - "3001:3000"   # 避免与前端端口冲突
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./config/grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - codeweave-network
+    profiles:
+      - monitoring
+
+  # 可选：Prometheus监控 (开发环境)
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: codeweave-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - codeweave-network
+    profiles:
+      - monitoring
+
+  # 可选：Loki日志聚合 (开发环境)
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: codeweave-loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./config/loki/loki-config.yml:/etc/loki/local-config.yaml
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - codeweave-network
+    profiles:
+      - monitoring
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  grafana_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  loki_data:
+    driver: local
+
+networks:
+  codeweave-network:
+    driver: bridge
+    name: codeweave-network

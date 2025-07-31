@@ -1,0 +1,47 @@
+# Grafana数据源配置
+# 自动配置Prometheus和Loki数据源
+
+apiVersion: 1
+
+datasources:
+  # Prometheus数据源
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+    jsonData:
+      timeInterval: "5s"
+      queryTimeout: "60s"
+      httpMethod: "POST"
+
+  # Loki数据源
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: true
+    jsonData:
+      maxLines: 1000
+      derivedFields:
+        - datasourceUid: prometheus
+          matcherRegex: "execution_id=(\\w+)"
+          name: "Execution ID"
+          url: "/d/workflow-execution?var-execution_id=$${__value.raw}"
+
+  # PostgreSQL数据源 (可选)
+  - name: PostgreSQL
+    type: postgres
+    access: proxy
+    url: postgres:5432
+    database: workflow_platform
+    user: postgres
+    editable: true
+    secureJsonData:
+      password: password
+    jsonData:
+      sslmode: disable
+      maxOpenConns: 0
+      maxIdleConns: 2
+      connMaxLifetime: 14400

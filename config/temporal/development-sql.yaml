@@ -1,0 +1,63 @@
+# Temporal开发环境配置
+# 针对PostgreSQL数据库的动态配置
+
+# 系统配置
+system.forceSearchAttributesCacheRefreshOnRead:
+  - value: true
+    constraints: {}
+
+# 前端配置
+frontend.enableUpdateWorkflowExecution:
+  - value: true
+    constraints: {}
+
+frontend.enableUpdateWorkflowExecutionAsyncAccepted:
+  - value: true
+    constraints: {}
+
+# 历史配置
+history.enableReadFromSecondaryVisibility:
+  - value: true
+    constraints: {}
+
+# 工作流配置
+limit.maxIDLength:
+  - value: 1000
+    constraints: {}
+
+# 搜索属性配置
+searchattribute.numberOfKeysLimit:
+  - value: 100
+    constraints: {}
+
+searchattribute.sizeOfValueLimit:
+  - value: 40000
+    constraints: {}
+
+searchattribute.sizeOfTotalLimit:
+  - value: 40000
+    constraints: {}
+
+# 可见性配置
+visibility.enableReadVisibilityFromES:
+  - value: false
+    constraints: {}
+
+# 开发环境特定配置
+system.enableActivityEagerExecution:
+  - value: true
+    constraints: {}
+
+# 工作流执行配置
+limit.workflowExecutionInfoSize:
+  - value: 64000
+    constraints: {}
+
+# 任务队列配置
+matching.numTaskqueueReadPartitions:
+  - value: 4
+    constraints: {}
+
+matching.numTaskqueueWritePartitions:
+  - value: 4
+    constraints: {}
